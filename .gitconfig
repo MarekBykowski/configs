@@ -1,0 +1,22 @@
+[user]
+	email = marek.bykowski@gmail.com
+	name = Marek Bykowski
+[sendemail]
+	smtpserver = smtp.gmail.com
+	smtpserverport = 587
+	smtpencryption = tls
+	smtpuser = marek.bykowski@gmail.com
+	from = marek.bykowski@gmail.com
+	#smtppass = yifpnvuzdlbfnsvz
+	chainreplyto = false
+	hello = marek-VirtualBox.ccr.corp.intel.com
+[alias]
+	co = checkout
+	ci = commit
+	st = status
+	br = branch
+	hist = log --pretty=format:\"%h %ad | %s%d [%an]\" --graph --date=short
+	gl = log --decorate --graph --all
+	#gitk = gitk --all --date-order --full-history
+[color]
+	ui = auto
