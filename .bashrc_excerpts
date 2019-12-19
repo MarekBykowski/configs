@@ -1,0 +1,7 @@
+cs_func() {
+        echo $PWD
+        find "$PWD" \( -name '*.[cshS]' -o -name '*.txt' -o -name '*.[hc]xx' -o -name '*.sh' -o -name '*.S' \) > "$PWD"/cscope.files
+        cd $PWD && cscope -R -b
+	CSCOPE_DB=$PWD/cscope.out; export CSCOPE_DB 
+}
+alias cs=cs_func
