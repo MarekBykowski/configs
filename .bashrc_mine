@@ -1,0 +1,1039 @@
+#git send-mail -> pwllurlghkcdwexs
+
+p_c()
+{
+cat << "EOF"
+IGN="LINUX_VERSION_CODE,FILE_PATH_CHANGES,MACRO_ARG_REUSE,CONFIG_DESCRIPTION"
+./scripts/checkpatch.pl --strict --no-tree --show-types --ignore $IGN
+
+EOF
+}
+
+be() {
+cat << 'EOF'
+bitbake -e axxia-image-small | grep -w DISTRO_FEATURE
+
+bitbake -c do_listtasks axxia-image-small <target>
+bitbake -c do_build u-boot <target>
+bitbake -c do_cleanall u-boot
+
+#log file -> search for "log file is located"
+#BSP layer development
+#https://www.yoctoproject.org/docs/2.1/bsp-guide/bsp-guide.html
+
+
+# find a package/recipes
+find ./ -name "*simicsfs*.bb*" -type f
+bitbake-layers show-recipes "*simicsfs*"
+devtool search simicsfs-client
+
+#Patching the source for a recipe
+devtool modify <recipe name>
+
+EOF
+}
+
+tmux_howto() {
+cat << 'EOF'
+tmux
+tmux new -s session
+tmux kill-session -t session
+tmux a -t myname
+tmux ls
+EOF
+}
+
+snr_kernel() {
+<< 'EOF'
+First, you need to use thud branch. Rocko is deprecated.
+
+But, there is a Makefile which will start a SNR build for you much easier.
+Please follow those instructions:
+
+git clone https://github.com/axxia/axxia_support.git
+cd axxia_support/yocto_build/
+make fs META_AXXIA_REL=snr_ase_rdk_1907 INCLUDE_RDK=false
+INCLUDE_SIMICSFS=false
+
+If you want the RDK drivers too, you need to download the archive from
+http://txaweb.an.intel.com/swbuilds/index.html, copy them in
+axxia_support/yocto_build/ Archives need to be in the format
+trdk_klm_src.txz and rdk_user_src.txz. More infor about this Makefile in
+README.
+Then set true for INCLUDE_RDK and rebuild.
+EOF
+}
+
+
+bitbake_build() {
+cat << 'EOF'
+source ./poky/oe-init-build-env axxia-snr-4.19
+bitbake axxia-image-small
+bitbake axxia-image-sim
+bitbake axxia-image-vcn
+bitbake axxia-image-vcn -c populate_sdk
+
+########################
+#after a change rebuild
+########################
+#rm -Rf tmp sstate-cache
+rm -rf bitbake-cookerdaemon.log cache sstate-cache tmp
+for target in axxia-image-small axxia-image-sim axxia-image-vcn; do
+	bitbake virtual/kernel $target -c cleansstate
+done
+
+bitbake axxia-image-small
+bitbake axxia-image-sim
+bitbake axxia-image-vcn
+bitbake axxia-image-vcn -c populate_sdk
+EOF
+}
+
+bitbake_install() {
+cat << 'EOF'
+mkdir -p /tools/AGRreleases/yocto/thud/snr_ase_rdk_1909.rc2/axxia-snr-4.19
+cd /tools/AGRreleases/yocto/thud/snr_ase_rdk_1908.rc2/axxia-snr-4.19
+cp -R <your build directory from above>/tmp/deploy/images/axxiax86-64 images
+cp -R <your build directory from above>/tmp/deploy/sdk .
+./sdk/intel-axxia*sh -y -d $(pwd)/tools
+
+# Once this completes, I create a simplified version of the environment
+# file as follows. This will create austin.env.
+(source /home/jjacques/scripts/yocto.functions && austinenv /tools/AGRreleases/yocto/thud/ snr_ase_rdk_1908.rc3/axxia-snr-4.19)
+. /austin.env
+cd $KDIR
+make clean oldconfig scripts tools/objtool
+EOF
+}
+
+
+bitbake_local_conf() {
+cat << 'EOF'
+MACHINE = "axxiax86-64"
+RUNTARGET = "snr"
+PREFERRED_PROVIDER_virtual/kernel = "linux-intel"
+PREFERRED_VERSION_linux-intel = "4.19%"
+RELEASE_VERSION = "snr_ase_rdk_1908"
+BB_NUMBER_THREADS = "88"
+PARALLEL_MAKE = "-j 88"
+#DL_DIR = "/tools/AGRreleases/yocto/jjacques/downloads"
+DISTRO = "intel-axxia"
+DISTRO_FEATURES_append = " simicsfs"
+PACKAGE_CLASSES ?= "package_rpm"
+EXTRA_IMAGE_FEATURES ?= "debug-tweaks x11-base"
+USER_CLASSES ?= "buildstats image-mklibs image-prelink"
+PATCHRESOLVE = "noop"
+
+BB_DISKMON_DIRS = "\
+    STOPTASKS,${TMPDIR},1G,100K \
+    STOPTASKS,${DL_DIR},1G,100K \
+    STOPTASKS,${SSTATE_DIR},1G,100K \
+    STOPTASKS,/tmp,100M,100K \
+    ABORT,${TMPDIR},100M,1K \
+    ABORT,${DL_DIR},100M,1K \
+    ABORT,${SSTATE_DIR},100M,1K \
+    ABORT,/tmp,10M,1K"
+PACKAGECONFIG_append_pn-qemu-native = " sdl"
+PACKAGECONFIG_append_pn-nativesdk-qemu = " sdl"
+CONF_VERSION = "1"
+EOF
+}
+
+bitbake_bblayers_conf() {
+cat << 'EOF'
+# LAYER_CONF_VERSION is increased each time build/conf/bblayers.conf
+# changes incompatibly
+LCONF_VERSION = "7"
+
+BBPATH = "${TOPDIR}"
+BBFILES ?= ""
+
+BBLAYERS ?= " \
+  /yocto/mbykowsx/yocto/poky/meta \
+  /yocto/mbykowsx/yocto/poky/meta-poky \
+  /yocto/mbykowsx/yocto/poky/../meta-openembedded/meta-oe \
+  /yocto/mbykowsx/yocto/poky/../meta-openembedded/meta-networking \
+  /yocto/mbykowsx/yocto/poky/../meta-openembedded/meta-filesystems \
+  /yocto/mbykowsx/yocto/poky/../meta-openembedded/meta-python \
+  /yocto/mbykowsx/yocto/poky/../meta-openembedded/meta-perl \
+  /yocto/mbykowsx/yocto/poky/../meta-security \
+  /yocto/mbykowsx/yocto/poky/../meta-security/meta-tpm \
+  /yocto/mbykowsx/yocto/poky/../meta-ros \
+  /yocto/mbykowsx/yocto/poky/../meta-virtualization \
+  /yocto/mbykowsx/yocto/poky/../meta-intel \
+  /yocto/mbykowsx/yocto/poky/../meta-intel-axxia_private/meta-intel-axxia \
+  /yocto/mbykowsx/yocto/poky/../meta-intel-axxia_private/meta-intel-snr \
+  "
+EOF
+}
+
+
+addr2line() {
+cat << 'EOF'
+addr=`grep -w axxia_oem_init System.map | cut -d " " -f 1`
+addr="0x$addr"
+aarch64-axxia-linux-addr2line -e vmlinux -a `printf "0x%x\n" $((addr+0x274))`
+EOF
+}
+
+ase_runs() {
+	cat << EOF
+	txaltc05
+	txacelnx2
+	txacelnx3
+	txacelnx4
+	txacelnx5
+	txacelnx6
+	txacelnx7
+	txacelnx8
+	txacelnx09
+	txacelnx13
+	txacelnx14
+EOF
+}
+
+hw_validation() {
+cat <<EOF
+/home/validation/al_common/util
+EOF
+}
+
+parameters() {
+cat <<EOF
+ncpBootMem -v 9 -c xlf -a image -r parameters <the ASE output file> <the binary you want to create>
+EOF
+}
+
+snr_training() {
+cat <<EOF
+cd /v/share/anu/SNR-trainings
+https://teamforge-amr-01.devtools.intel.com/sf/projects/iwa_perf/
+EOF
+}
+
+snr_wildcat_build() {
+cat <<EOF
+#log to build system
+ssh wcpqa2
+
+#set cross compiler for snr
+unset LD_LIBRARY_PATH
+source /workspace/sw/performance/snr/rdk_asic/yocto/po_dev_1_0_2018_11_29_4.12_out_of_tree/iwa_rdk.env
+EOF
+}
+
+lua() {
+cat << EOF
+/workspace/sw/mbykowsx/lionfish/srift/srift_lua/srift/srift -i /workspace/sw/mbykowsx/lionfish/srift/testcases/link/VSB/vsb_enable_tc/vsb_enable.lua
+EOF
+}
+
+
+qos_dacu() {
+cat << 'EOM'
+cd /workspace/se/tegolf/RTE/ncp_rte and it 1.5.7.080
+source ./ncp.env && ncpDriver ncp add
+
+mount -t nfs -o tcp,nolock,intr 10.123.116.82:/sw002/se_2/tegolf /mnt_tegolf1
+source /workspace/se/tegolf/set_env_hf_waco.sh
+startup.sh
+
+./eventMachine -t 3
+
+EOM
+
+}
+
+xlf() {
+    cat << EOF
+
+telnet axx-w077-ts 5003
+telnet axx-w077-ts 5000
+
+/home/validation/al_common/util/acprebootu axx-w077
+/home/validation/al_common/util/acprebootu axx-w077 ts_reset
+
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte_a53_ext && source ./ncp.env && ncpDriver ncp add
+
+ncpBootMem -a write -r prom -o 0 /workspace/sw/mbykowsx/lionfish/uboot/u-boot-spl.img
+ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/mbykowsx/lionfish/uboot/u-boot.img
+ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/mbykowsx/lionfish/uboot/AXC6700.bin
+
+# uboot in memory
+#ncpBootMem -a write -r prom -o 0 /workspace/sw/mbykowsx/lionfish/xlf_uboot_memory/u-boot-spl.img
+#ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/mbykowsx/lionfish/xlf_uboot_memory/u-boot.img
+#ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/mbykowsx/lionfish/uboot/AXC6700.bin
+#parameters.bin
+#/tools/AGRreleases/axxia/u-boot_v2015.10_axxia_1.50_atf_84091c4_1.23/axc6700
+
+# release from reset
+ncpWrite 0x156.0.0x2000 0xab ; ncpWrite 0x156.0.0x2010 0xfffe ; ncpWrite 0x156.0.0x2000 0
+
+ncpBootMem -v 9 -c xlf -a image -r parameters <the ASE output file> <the binary you want to create>
+
+tftp aus-labsrv2 << TFTP
+put /workspace/sw/mbykowsx/lionfish/uboot/u-boot.img u-boot.img
+put /workspace/sw/mbykowsx/lionfish/uboot/u-boot-spl.img u-boot-spl.img
+TFTP
+
+
+EOF
+}
+
+axm55xx() {
+	cat << EOF
+telnet axx-a078-ts 5003
+telnet axx-a078-ts 5000
+
+/home/validation/al_common/util/acprebootu axx-a078
+/home/validation/al_common/util/acprebootu axx-a078 ts_reset
+
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte_a15_ext && source ./ncp.env && ncpDriver ncp add
+
+# release from reset
+ncpWrite 0x156.0.0x1000 0xab; ncpWrite 0x156.0.0x1004 0x1c1; ncpWrite 0x156.0.0x1010 0xffff; ncpWrite 0x156.0.0x1008 0x34; ncpWrite 0x156.0.0x1008 0; ncpWrite 0x156.0.0x1010 0xfffe; ncpWrite 0x156.0.0x1000 0x0
+EOF
+}
+
+ncp_rte_xlf() {
+cat << EOF
+	source ncp.env
+	cp src/env/make.env.linux_4.1-arma53 src/make.env
+	cd src
+	make clean -j 24
+	make debug release -j 24  && make debug install -j 24
+
+	cd /workspace/sw/mbykowsx/lionfish/ncp_rte_xlf && source ./ncp.env && ncpDriver ncp add
+	ncpCfgTool -c /workspace/sw/mbykowsx/lionfish/l3/config.cfg -r -n /tmp/trace -H > /tmp/trace_tree
+EOF
+}
+
+
+netboot() {
+cat << EOF
+	source src.env #set up environment
+	export NCP_MULTI_BUILDS=true
+	make -f make.unix rte-base && make -f make.linux-arma53-lttng clobber debug install idsprototype -j 24
+	# go to ncp_rte
+	cd /workspace/sw/mbykowsx/lionfish/netboot_xlf/trunk/trunk/images/ncp_linux-arma53-lttng_rte_bin/ncp_rte
+
+
+	cd /workspace/sw/mbykowsx/lionfish/$0 && source ./ncp.env && ncpDriver ncp add
+	ncpCfgTool -c /workspace/sw/mbykowsx/lionfish/l3/config.cfg -r -n /tmp/trace -H > /tmp/trace_tree
+EOF
+}
+
+ccn() {
+cat << 'EOF'
+My RTE is at:
+cd /workspace/sw/aruncs/axxia-rte/images/ncp_linux-arma53_rte_bin/ncp_rte
+. ./ncp.env
+Which ncpRead 0x1e0.0x81…..
+Which ncpWrite
+
+Path to where arun’s local panels are:
+/workspace/sw/aruncs/shelley_debug_nokia
+
+official Panels:
+export PATH=/home/validation/al_common/util:$PATH
+cd /home/validation/al_common/util
+ls *shelley*.pl
+
+Panel Run:
+cd /workspace/sw/aruncs/shelley_debug_nokia
+./setup_shelley_pmu.pl 64 0 default
+./setup_shelley_pmu.pl 64 0 run
+./setup_shelley_pmu.pl 64 0 stop
+./setup_shelley_pmu.pl 64 0 snapshot
+./disp_perf_rni_shelley 0x40 0
+
+
+Mareks Panel:
+Region 129: id=1, type=0x16 (CCN_TYPE_RNI_3P) – is seems to be a one bridging to RIFs
+
+cd /workspace/sw/mbykowsx/lionfish/ccn
+./setup_shelley_pmu.pl 64 0 default
+./setup_shelley_pmu.pl 64 0 run
+./setup_shelley_pmu.pl 64 0 stop
+./setup_shelley_pmu.pl 64 0 snapshot
+./disp_perf_rni_shelley 64 0
+
+
+Then with arm-ccn
+#Note: to perf we give NodeId (in contrast to RegionId)
+perf stat -a -e ccn/rni_rdata_beats_p0,node=1/
+
+
+
+
+EOF
+}
+rte_build() {
+	cat << EOF
+   svn:
+	http://txasoft2.an.intel.com/svn/software/src/trunk
+   servers:
+	ssh ml (txacwa01)
+	- build kernel on txacwa01
+	- build rte against that kernel on txacwa01 (see git log)
+   #to build:
+	source src.env #set up environment
+	export NCP_MULTI_BUILDS=true
+	# building for ARM® Cortex™-A53 64-bit CPU
+	make -f make.unix rte-base
+	make -f make.linux-arma53 clobber release install idsprototype -j 20
+	make -f make.linux-arma53 clobber debug install idsprototype -j 20
+	#
+	make -f make.linux-arma57 clobber release install idsprototype -j 20
+	make -f make.linux-arma57 release install idsprototype -j 20
+   #to clean:
+	source src.env
+	make -f make.linux-arma53 clean clobber
+	make -f make.unix clean clobber
+
+
+   #load rte, load config.cfg, build app and run:
+	cd /workspace/sw/mbykowsx/lionfish/axxia-rte/images/ncp_linux-arma53_rte_bin/ncp_rte
+	source ./ncp.env
+	ncpDriver ncp update
+
+	cd /workspace/sw/mlapajx/for_marek/1st_rif0_read && ./start.sh
+	cd /workspace/sw/mbykowsx/lionfish/ccn
+	./setup_shelley_pmu.pl
+	./disp_perf_shelley.pl HNF 2
+
+	cd /workspace/sw/mbykowsx/lionfish/ccn
+	./setup_shelley_pmu.pl 32 2 default
+	./setup_shelley_pmu.pl 32 2 run
+	./setup_shelley_pmu.pl 32 2 stop
+	./setup_shelley_pmu.pl 32 2 snapshot
+	./disp_perf_shelley.pl HNF 32 2
+
+	PATH=/workspace/sw/mbykowsx/lionfish/perf/nuevo/cpu/axm6732/asic_v1.1/lmbench3/bin/armv8l-linux-gnu/:$PATH
+	perf stat -a -e ccn/hnf_cache_miss,node=2/,ccn/hnf_cache_miss,node=5/,ccn/cycles/ bw_mem -P 1 -N 100 16m rd
+
+
+	perf stat -a -e ccn/hnf_cache_miss,node=2/,ccn/hnf_cache_miss,node=5/,ccn/cycles/
+
+	cd /workspace/sw/mbykowsx/lionfish/srift-srift/testcases/CPRI_asic/link/lte_10MHz_tc/rif_config
+	ncpCfgTool -c ./config_waco.cfg -r
+	cd /workspace/sw/mbykowsx/lionfish/srift-srift/testcases/CPRI_asic/link/Alignment/align_frame_to_bcn_tc
+	#make clean && make debug
+	./align_frame_to_bcn
+
+
+	#build config from Piotrs dir
+	# on workserver
+	cd /workspace/sw/mbykowsx/lionfish/srift-srift/testcases/CPRI_asic/link/Alignment/align_frame_to_bcn_tc/RifCpriSample
+	/workspace/sw/ppiskorx/build/ase/acpbuild
+	# on target
+	cd /workspace/sw/mbykowsx/lionfish/srift-srift/testcases/CPRI_asic/link/Alignment/align_frame_to_bcn_tc/RifCpriSample
+	ncpCfgTool -c ./config.cfg -r
+	cd /workspace/sw/mbykowsx/lionfish/srift-srift/testcases/CPRI_asic/link/Alignment/align_frame_to_bcn_tc
+	./align_frame_to_bcn
+
+EOF
+}
+
+eh_build() {
+cat << "EOF"
+For EH here is the procedure:
+
+1.	Identify a FRIO that has XSTEP connectivit
+http://axpaasync002.sync.intel.com:47014/scripts/isynch.dll?panel=TclScript&file=getACPSum.tcl&fulllist=10&xlfSwitch=XLF
+
+2.	Power cycle the frio using /workspace/sw/jjacques/projects/axxia/lab/scripts/genesys_power_cycle frio-027-ps substituting the exact frio id in the command.
+/workspace/sw/jjacques/projects/axxia/lab/scripts/genesys_power_cycle frio-035-ps
+
+3.	load fpga pre image
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte && source ./ncp.env
+/home/validation/al_common/XLF/util/load_a3_xlf_ph3.8.2
+
+4. 	load fpga image
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte && source ./ncp.env
+/home/validation/al_common/XLF/util/sa_fpga_load_baseline_xlf_ph3.8.2c
+
+5.	load ncp driver and set PLL
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte && source ./ncp.env
+ncpDriver ncp add
+ncpShell /workspace/sw/mbykowsx/lionfish/configs/rif_api_mb.nsh
+#/home/validation/al_common/XLF/hw/tests/rif_test/programCleanoutPLL
+#/home/validation/al_common/XLF/util/debugRead.pl -fpgaNum b1 -I 5 -addr 0x100 -numLocs 12
+
+6. 	reset board following loading config
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte && source ./ncp.env &&
+/home/validation/al_common/XLF/hw/tests/eioa_base/reset_sa_mb_xlf && ncpDriver ncp update &&
+ncpShell /workspace/sw/mbykowsx/lionfish/configs/rif_api_mb.nsh
+EOF
+}
+
+ih_build() {
+cat << "EOF"
+7. Load uboot and linux
+ar=( $(grep ^UBOOT_VERSION /workspace/sw/mbykowsx/lionfish/trunk/env/make.env.linux-arma53) )
+UBOOT=( $(find /tools/AGRreleases/axxia/ -maxdepth 1 -name "*${ar[2]}*" -type d) )
+ar=( $(grep ^KERNEL_VERSION /workspace/sw/mbykowsx/lionfish/trunk/env/make.env.linux-arma53) )
+KERNEL=$(find /tools/AGRreleases/axxia/ -maxdepth 1 -name "*${ar[2]}*" -type d)
+echo ${UBOOT[0]}
+echo $KERNEL
+
+ncpBootMem -a write -r prom /workspace/sw/mbykowsx/lionfish/uboot/u-boot-spl.img
+ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/mbykowsx/lionfish/uboot/u-boot.img
+ncpBootMem -a write -r prom -o 0x80000 ${UBOOT[0]}/parameters/AXC6700_emu.bin
+MULTI=$KERNEL/axxia-arm64-xlf-dev/axc6712-emu/multi.fit
+
+STRING=$(hostname)
+STRING=${STRING/a-ep2p/-a15}
+tftp aus-labsrv2 -c put $MULTI kernel-${STRING}
+
+/home/validation/al_common/XLF/util/balaji/XLFe.enable
+
+8. Load RTE and app
+Open the ARM serial console terminal by using telnet. This should give you the information.
+http://axpaasync002.sync.intel.com:47014/scripts/isynch.dll?panel=TclScript&file=getACPSum.tcl&fulllist=10&xlfSwitch=XLF
+
+9. Source RTE’s ncp.env
+mount -t nfs ancfs04n01a-03:/sw013/ws_sw_atm-abis/ /workspace/sw/ &&
+cd /workspace/sw/mbykowsx/lionfish/trunk/images/ncp_linux-arma53_rte_bin/ncp_rte && source ./ncp.env &&
+ncpDriver ncp add && ncpCfgTool -c /workspace/sw/mbykowsx/lionfish/configs/config_fpga.cfg -r &&
+export PS1="\u@\h:$ "
+
+10. Build app
+export ASE_INSTALL=/workspace/sw/mbykowsx/lionfish/ase
+export JAVA_HOME=/home/morawieX/jre1.8.0_73/
+cd /workspace/sw/mbykowsx/lionfish/RifCpriSample_send && make clean && cd /workspace/sw/mbykowsx/lionfish/RifCpriSample_send/cpu && make clean
+cd /workspace/sw/mbykowsx/lionfish/RifCpriSample_send && make debug && cd /workspace/sw/mbykowsx/lionfish/RifCpriSample_send/cpu && make debug
+
+11. Reset
+cd /workspace/sw/mbykowsx/lionfish/trunk/images/ncp_linux-ep8572_xlf_rte_bin/ncp_rte && source ./ncp.env &&
+/home/validation/al_common/XLF/util/balaji/XLFe.enable
+
+EOF
+}
+teh_build() {
+cat << "EOF"
+For EH here is the procedure:
+
+1.	Identify a FRIO that has XSTEP connectivit
+http://axpaasync002.sync.intel.com:47014/scripts/isynch.dll?panel=TclScript&file=getACPSum.tcl&fulllist=10&xlfSwitch=XLF
+
+2.	Power cycle the frio using /workspace/sw/jjacques/projects/axxia/lab/scripts/genesys_power_cycle frio-027-ps substituting the exact frio id in the command.
+/workspace/sw/jjacques/projects/axxia/lab/scripts/genesys_power_cycle frio-035-ps
+
+3.	load fpga pre image
+cd /workspace/sw/mbykowsx/lionfish/trunk/images/ncp_linux-ep8572_xlf_rte_bin/ncp_rte && source ./ncp.env
+/home/validation/al_common/XLF/util/load_a3_xlf_ph3.9
+
+4. 	load fpga image
+cd /workspace/sw/mbykowsx/lionfish/trunk/images/ncp_linux-ep8572_xlf_rte_bin/ncp_rte && source ./ncp.env
+/home/validation/al_common/XLF/util/sa_fpga_load_baseline_xlf_ph3.9
+
+5. load ncp driver and set PLL
+cd /workspace/sw/mbykowsx/lionfish/trunk/images/ncp_linux-ep8572_xlf_rte_bin/ncp_rte && source ./ncp.env
+ncpDriver ncp add
+ncpShell /workspace/sw/mbykowsx/lionfish/configs/rif_api_mb.nsh
+#/home/validation/al_common/XLF/hw/tests/rif_test/programCleanoutPLL
+#/home/validation/al_common/XLF/util/debugRead.pl -fpgaNum b1 -I 5 -addr 0x100 -numLocs 12
+
+6. reset board following loading config
+cd /workspace/sw/mbykowsx/lionfish/trunk/images/ncp_linux-ep8572_xlf_rte_bin/ncp_rte && source ./ncp.env &&
+/home/validation/al_common/XLF/hw/tests/eioa_base/reset_sa_mb_xlf && ncpDriver ncp update &&
+ncpShell /workspace/sw/mbykowsx/lionfish/configs/rif_api_mb.nsh
+EOF
+}
+
+rootfs(){
+cat << "EOF"
+# source
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte_victoria && source ./ncp.env
+ncpDriver ncp add
+
+MULTI=/workspace/sw/mbykowsx/lionfish/uboot/multi.fit
+
+STRING=$(hostname)
+STRING=${STRING/ct1/a57}
+echo tftp aus-labsrv2
+# name must be kernel-axx-v014-ct1
+echo put $MULTI kernel-${STRING}
+
+tftp aus-labsrv2
+put $MULTI kernel-${STRING}
+
+tftp aus-labsrv2 -c put axxia-image-small-axxiaarm64.ext2.gz
+
+# release from reset
+ncpWrite 0x156.0.0x2000 0xab ; ncpWrite 0x156.0.0x2010 0xfffe ; ncpWrite 0x156.0.0x2000 0
+
+EOF
+}
+
+axx-v072-a57() {
+cat << "EOF"
+# source
+# lynx --source tarball > t
+# tar xzvf t --strip-components=1 -C ncp_rte_victoria_int
+# cd /workspace/sw/mbykowsx/lionfish/ncp_rte_victoria_ext && source ./ncp.env && ncpDriver ncp add
+# cd /workspace/sw/mbykowsx/lionfish/ncp_rte_victoria_int && source ./ncp.env && ncpDriver ncp add
+
+# load uboot and linux
+ar=( $(grep ^UBOOT_VERSION /workspace/sw/mbykowsx/lionfish/trunk/env/make.env.linux-arma57) )
+UBOOT=( $(find /tools/AGRreleases/axxia/ -maxdepth 1 -name "*${ar[2]}*" -type d) )
+ar=( $(grep ^KERNEL_VERSION /workspace/sw/mbykowsx/lionfish/trunk/env/make.env.linux-arma57) )
+KERNEL=( $(find /tools/AGRreleases/axxia/ -maxdepth 1 -name "*${ar[2]}*" -type d) )
+echo ${UBOOT[0]}
+echo ${KERNEL[0]}
+
+#ncpBootMem -a write -r prom -o 0 /workspace/sw/mbykowsx/lionfish/uboot/u-boot-spl.img
+#ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/mbykowsx/lionfish/uboot/u-boot.img
+#ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/mbykowsx/lionfish/uboot/AXM5600.bin
+
+#MULTI=$KERNEL/axxia-arm64-xlf-dev/axc6712-emu/multi.fit
+#MULTI=$KERNEL/axxia-arm64-x9-dev/axm5616-victoria/multi.fit
+
+MULTI=/workspace/sw/mbykowsx/lionfish/uboot/multi.fit
+
+STRING=$(hostname)
+STRING=${STRING/ct1/a57}
+echo tftp aus-labsrv2
+# name must be kernel-axx-v014-ct1
+echo put $MULTI kernel-${STRING}
+
+tftp aus-labsrv2
+put $MULTI kernel-${STRING}
+
+# release from reset
+ncpWrite 0x156.0.0x2000 0xab ; ncpWrite 0x156.0.0x2010 0xfffe ; ncpWrite 0x156.0.0x2000 0
+
+# log on
+# external host
+telnet axx-v072-ts 5003
+# internal host
+telnet axx-v072-ts 5000
+
+# areboot
+/home/validation/al_common/util/acprebootu axx-v072
+/home/validation/al_common/util/acprebootu axx-v072 ts_reset
+
+mount -t nfs 10.123.116.83:/sw013/ws_sw_atm-abis/ workspace/sw/
+
+
+EOF
+}
+
+w024(){
+cat << "EOF"
+# release from reset
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte_xlf_b0
+source ./ncp.env && ncpDriver ncp add
+ncpWrite 0x156.0.0x2000 0xab ; ncpWrite 0x156.0.0x2010 0xfffe ; ncpWrite 0x156.0.0x2000 0
+
+# reflash Uboot and release out of reset
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte_xlf_b0
+source ./ncp.env && ncpDriver ncp add
+#ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/mbykowsx/lionfish/axxia_u-boot_private/parameters.bin
+ncpBootMem -a write -r prom -o 0 /workspace/sw/mbykowsx/lionfish/axxia_u-boot_private/spl/u-boot-spl.img
+ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/mbykowsx/lionfish/axxia_u-boot_private/u-boot.img
+ncpWrite 0x156.0.0x2000 0xab ; ncpWrite 0x156.0.0x2010 0xfffe ; ncpWrite 0x156.0.0x2000 0
+#ncpBootMem -a write -r prom -o 0x80000 /tools/AGRreleases/axxia/u-boot_v2015.10_axxia_1.77_atf_84091c4_1.36/parameters/AXC6700_b0.bin
+
+# load ncp rte (Marcins) and config
+#repo: /home/mbykowsx/srift.git, branch: netboot_xlf_lttng_generate_traces
+cd /workspace/sw/mbykowsx/lionfish/srift/images/ncp_linux-arma53-lttng_rte_bin/ncp_rte
+source ./ncp.env && ncpDriver ncp add
+cd /workspace/sw/mbykowsx/lionfish/netboot_xlf
+ncpCfgTool -c ./config.cfg -r -O ./config.ovr
+
+#multi.fit from there
+pushd /tools/AGRreleases/axxia/linux_4.1_axxia_rt_1.54/axxia-arm64-xlf-dev/axc6732-waco
+tftp aus-labsrv2 << TFTP
+put multi.fit kernel-axx-w074-a53
+TFTP
+popd
+
+
+EOF
+}
+
+v026() {
+cat << "EOF"
+# source
+# lynx --source tarball > t
+# tar xzvf t --strip-components=1 -C ncp_rte_victoria_int
+
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte_a57_ext && source ./ncp.env && ncpDriver ncp add
+ncpBootMem -a write -r prom -o 0 /workspace/sw/mbykowsx/lionfish/uboot/u-boot-spl.img
+ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/mbykowsx/lionfish/uboot/u-boot.img
+#ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/ldmitrox/axxia_u-boot_private_Marek/u-boot.img
+#ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/mbykowsx/lionfish/uboot/AXM5600.bin
+# release from reset
+ncpWrite 0x156.0.0x2000 0xab ; ncpWrite 0x156.0.0x2010 0xfffe ; ncpWrite 0x156.0.0x2000 0
+
+# just release from reset
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte_a57_ext && source ./ncp.env && ncpDriver ncp add
+ncpWrite 0x156.0.0x2000 0xab ; ncpWrite 0x156.0.0x2010 0xfffe ; ncpWrite 0x156.0.0x2000 0
+
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte_victoria_ext && source ./ncp.env && ncpDriver ncp add
+ncpBootMem -a write -r prom -o 0 /workspace/sw/mbykowsx/lionfish/uboot/u-boot-spl.img
+ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/mbykowsx/lionfish/uboot/AXM5600.bin
+ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/mbykowsx/lionfish/uboot/u-boot.img
+
+# release from reset
+cd /workspace/sw/mbykowsx/lionfish/netboot_xlf/ncp_rte_wr
+source ./ncp.env && ncpDriver ncp add
+ncpWrite 0x156.0.0x2000 0xab ; ncpWrite 0x156.0.0x2010 0xfffe ; ncpWrite 0x156.0.0x2000 0
+
+# cd /workspace/sw/mbykowsx/lionfish/ncp_rte_victoria_int && source ./ncp.env && ncpDriver ncp add
+# cd /workspace/sw/mbykowsx/lionfish/ncp_rte && source ./ncp.env && ncpDriver ncp add
+# cd /workspace/sw/mbykowsx/lionfish/trunk/images/ncp_linux-arma57-eioa_rte_bin/ncp_rte
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte_a57_int/ncp_rte && source ./ncp.env && ncpDriver ncp add
+# source ./ncp.env && ncpDriver ncp add
+ncpCfgTool -c /workspace/sw/mbykowsx/lionfish/configs/config.cfg -r -n /tmp/trace -H > /tmp/trace_tree
+
+export PATH=/home/validation/al_common/util:$PATH
+disp_ncav2_status
+disp_ncav2_pgit_x9
+2. Sprawdzic jakie mamy tcld i tcls dla naszego eioa: - setup_smon eioam0.trecv
+3. Wyswietlic dostepne countery: np. setup_smon eioam0.tcld
+4. Ustawiamy countery (max 2): setup_smon eioam0.tcld 0 1
+5. Wyswietlamy: disp_smon eioam0.tcld
+
+# load uboot and linux
+ar=( $(grep ^UBOOT_VERSION /workspace/sw/mbykowsx/lionfish/trunk/env/make.env.linux-arma57) )
+UBOOT=( $(find /tools/AGRreleases/axxia/ -maxdepth 1 -name "*${ar[2]}*" -type d) )
+ar=( $(grep ^KERNEL_VERSION /workspace/sw/mbykowsx/lionfish/trunk/env/make.env.linux-arma57) )
+KERNEL=( $(find /tools/AGRreleases/axxia/ -maxdepth 1 -name "*${ar[2]}*" -type d) )
+
+echo ${UBOOT[0]}
+echo ${KERNEL[0]}
+
+#ncpBootMem -a write -r prom -o 0 /workspace/sw/mbykowsx/lionfish/uboot/reference/u-boot-spl.img
+#ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/mbykowsx/lionfish/uboot/reference/u-boot.img
+#ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/mbykowsx/lionfish/uboot/reference/AXM5600.bin
+kernel-axx-v066-a57
+
+#MULTI=$KERNEL/axxia-arm64-xlf-dev/axc6712-emu/multi.fit
+#MULTI=$KERNEL/axxia-arm64-x9-dev/axm5616-victoria/multi.fit
+
+MULTI=/workspace/sw/mbykowsx/lionfish/uboot/multi.fit
+
+STRING=$(hostname)
+STRING=${STRING/ct1/a57}
+echo tftp aus-labsrv2
+# name must be kernel-axx-v014-ct1
+echo put $MULTI kernel-${STRING}
+
+tftp aus-labsrv2
+put $MULTI kernel-${STRING}
+
+
+# log on
+# external host
+telnet axx-v026-ts 5003
+# internal host
+telnet axx-v026-ts 5000
+
+# reboot
+/home/validation/al_common/util/acprebootu axx-v026
+/home/validation/al_common/util/acprebootu axx-v026 ts_reset
+
+mount -t nfs 10.123.116.83:/sw013/ws_sw_atm-abis/ /workspace/sw/
+
+ncpBootMem -a write -r prom -o 0 /workspace/sw/mbykowsx/lionfish/uboot/u-boot-spl.img
+ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/mbykowsx/lionfish/uboot/AXM5600.bin
+ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/mbykowsx/lionfish/uboot/u-boot.img
+
+EOF
+
+}
+
+axx-a003() {
+cat << "EOF"
+# source
+# change cd /workspace/sw/mbykowsx/lionfish/ncp_rte_a57_ext && source ./ncp.env && ncpDriver ncp add
+
+ncpBootMem -a write -r prom -o 0 /workspace/sw/mbykowsx/lionfish/uboot/u-boot-spl.img
+ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/mbykowsx/lionfish/uboot/u-boot.img
+#ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/mbykowsx/lionfish/uboot/AXM5600.bin
+
+#Rafal's
+#ncpBootMem -a write -r prom -o 0 /workspace/sw/rskierkx/uboot/u-boot-spl.img
+#ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/rskierkx/uboot/u-boot.img
+#ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/rskierkx/uboot/AXM5600.bin
+
+# release from reset
+ncpWrite 0x156.0.0x1000 0xab; ncpWrite 0x156.0.0x1004 0x1c1; ncpWrite 0x156.0.0x1010 0xffff; ncpWrite 0x156.0.0x1008 0x34; ncpWrite 0x156.0.0x1008 0; ncpWrite 0x156.0.0x1010 0xfffe; ncpWrite 0x156.0.0x1000 0x0
+
+# log on
+# external host
+telnet axx-a003-ts 5003
+# internal host
+telnet axx-a003-ts 5000
+
+/home/validation/al_common/util/acprebootu axx-a003
+/home/validation/al_common/util/acprebootu axx-a003 ts_reset
+EOF
+
+
+
+
+}
+
+axm5616() {
+cat << "EOF"
+# source
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte && source ./ncp.env
+ncpDriver ncp add
+
+ncpBootMem -a write -r prom -o 0 /workspace/sw/mbykowsx/lionfish/uboot/u-boot-spl.img
+ncpBootMem -a write -r prom -o 0x100000
+ ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/mbykowsx/lionfish/uboot/AXM5600.bin
+
+#Rafal's
+#ncpBootMem -a write -r prom -o 0 /workspace/sw/rskierkx/uboot/u-boot-spl.img
+#ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/rskierkx/uboot/u-boot.img
+#ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/rskierkx/uboot/AXM5600.bin
+
+# release from reset
+ncpWrite 0x156.0.0x2000 0xab ; ncpWrite 0x156.0.0x2010 0xfffe ; ncpWrite 0x156.0.0x2000 0
+
+# log on
+# external host
+telnet axx-v010-ts 5003
+# internal host
+telnet axx-v010-ts 5000
+EOF
+}
+
+axm56_10() {
+cat << "EOF"
+# source
+cd /workspace/sw/mbykowsx/lionfish/ncp_rte_victoria && source ./ncp.env
+ncpDriver ncp add
+
+# load uboot and linux
+ar=( $(grep ^UBOOT_VERSION /workspace/sw/mbykowsx/lionfish/trunk/env/make.env.linux-arma57) )
+UBOOT=( $(find /tools/AGRreleases/axxia/ -maxdepth 1 -name "*${ar[2]}*" -type d) )
+ar=( $(grep ^KERNEL_VERSION /workspace/sw/mbykowsx/lionfish/trunk/env/make.env.linux-arma57) )
+KERNEL=( $(find /tools/AGRreleases/axxia/ -maxdepth 1 -name "*${ar[2]}*" -type d) )
+echo ${UBOOT[0]}
+echo ${KERNEL[0]}
+
+ncpBootMem -a write -r prom -o 0 /workspace/sw/mbykowsx/lionfish/uboot/u-boot-spl.img
+ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/mbykowsx/lionfish/uboot/u-boot.img
+ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/mbykowsx/lionfish/uboot/AXM5600.bin
+
+#Rafal's
+#ncpBootMem -a write -r prom -o 0 /workspace/sw/rskierkx/uboot/u-boot-spl.img
+#ncpBootMem -a write -r prom -o 0x100000 /workspace/sw/rskierkx/uboot/u-boot.img
+#ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/rskierkx/uboot/AXM5600.bin
+
+#MULTI=$KERNEL/axxia-arm64-xlf-dev/axc6712-emu/multi.fit
+MULTI=$KERNEL/axxia-arm64-x9-dev/axm5616-victoria/multi.fit
+MULTI=/workspace/sw/mbykowsx/lionfish/uboot/multi.fit
+
+STRING=$(hostname)
+STRING=${STRING/ct1/a57}
+echo tftp aus-labsrv2
+echo put $MULTI kernel-${STRING}
+#kernel-axx-v010-ct1
+
+tftp aus-labsrv2
+put $MULTI kernel-${STRING}
+
+# release from reset
+ncpWrite 0x156.0.0x2000 0xab ; ncpWrite 0x156.0.0x2010 0xfffe ; ncpWrite 0x156.0.0x2000 0
+
+# log on
+# external host
+telnet axx-v010-ts 5003
+# internal host
+telnet axx-v010-ts 5000
+
+################################
+# switching Boot Mode Remotely -- 5600 Victoria
+################################
+# To See if External Switching is Enabled (BS_SRC_EN)
+# Using the RTE to do the Read
+ncpI2CRead -d0 -w8 0x80.0x13 1
+# Using U-Boot to do the Read
+i2c dev 0
+i2c md 0x40 0x13 1
+# The Result
+If bit 7 is set, the boot mode can be changed remotely; otherwise, NOT.
+
+# To Check the Current Boot Mode
+# Using the RTE to do the Read
+ncpI2CRead -d1 -w8 0x40.0x02 0x02
+# Using U-Boot to do the Read
+i2c dev 1
+i2c md 0x20 0x2 2
+# The Result
+0a ab : Internal Boot Mode
+0b ab : External Boot Mode
+
+# Switch to Internal Boot Mode
+# Using the RTE
+ncpI2CWrite -d1 -w8 0x40.0x06 0x00 0x00
+ncpI2CWrite -d1 -w8 0x40.0x02 0x0a 0xab
+# Using U-Boot
+i2c dev 1
+i2c mw 0x20 0x06 0
+i2c mw 0x20 0x07 0
+i2c mw 0x20 0x02 a
+i2c mw 0x20 0x03 ab
+
+## Switch to External Boot Mode
+# Using the RTE
+ncpI2CWrite -d1 -w8 0x40.0x06 0x00 0x00
+ncpI2CWrite -d1 -w8 0x40.0x02 0x0b 0xab
+# Using U-Boot
+i2c dev 1
+i2c mw 0x20 0x06 0
+i2c mw 0x20 0x07 0
+i2c mw 0x20 0x02 b
+i2c mw 0x20 0x03 ab
+
+# reset after changing to internal boot mode
+/home/validation/al_common/util/acprebootu axx-v010
+
+
+mount -t nfs ancfs04n01a-03:/sw013/ws_sw_atm-abis/ /workspace/sw/ &&
+cd /workspace/sw/mbykowsx/lionfish/trunk/images/ncp_linux-arma57_rte_bin/ncp_rte && source ./ncp.env &&
+ncpDriver ncp add && ncpCfgTool -c /workspace/sw/mbykowsx/lionfish/configs/config_fpga.cfg -r &&
+export PS1="\u@\h:$ "
+
+10. Build app
+export ASE_INSTALL=/workspace/sw/mbykowsx/lionfish/ase
+export JAVA_HOME=/home/morawieX/jre1.8.0_73/
+cd /workspace/sw/mbykowsx/lionfish/RifCpriSample_send && make clean && cd /workspace/sw/mbykowsx/lionfish/RifCpriSample_send/cpu && make clean
+cd /workspace/sw/mbykowsx/lionfish/RifCpriSample_send && make debug && cd /workspace/sw/mbykowsx/lionfish/RifCpriSample_send/cpu && make debug
+
+11. Reset TODO
+cd /workspace/sw/mbykowsx/lionfish/trunk/images/ncp_linux-ep8572_xlf_rte_bin/ncp_rte && source ./ncp.env &&
+/home/validation/al_common/XLF/util/balaji/XLFe.enable
+
+EOF
+}
+
+
+uboot_env() {
+cat << "EOF"
+baudrate=9600
+bootargs=console=ttyAMA0 ip=dhcp root=/dev/nfs rw mem=2G
+bootcmd=setenv autoload ; dhcp ; bootm
+bootdelay=-1
+disable_usb3=true
+ethact=NEMAC
+ethaddr=98:4f:ee:10:e4:09
+fdt_high=0x20000000
+initrd_high=0x20000000
+loadaddr=4000000
+stderr=serial
+stdin=serial
+stdout=serial
+EOF
+}
+
+
+
+#original images
+#ncpBootMem -a write -r prom -o 0x80000 /workspace/sw/mbykowsx/lionfish/uboot/parameters.bin
+#ncpBootMem -a write -r prom ${UBOOT[0]}/axc6700_emu/u-boot-spl.img
+#ncpBootMem -a write -r prom -o 0x100000 ${UBOOT[0]}/axc6700_emu/u-boot.img
+
+
+
+ih_build_off() {
+cat << "EOF"
+7. Load uboot and linux
+ar=( $(grep ^UBOOT_VERSION /workspace/sw/mbykowsx/lionfish/trunk/env/make.env.linux-arma53) )
+UBOOT=( $(find /tools/AGRreleases/axxia/ -maxdepth 1 -name "*${ar[2]}*" -type d) )
+ar=( $(grep ^KERNEL_VERSION /workspace/sw/mbykowsx/lionfish/trunk/env/make.env.linux-arma53) )
+KERNEL=( $(find /tools/AGRreleases/axxia/ -maxdepth 1 -name "*${ar[2]}*" -type d) )
+echo ${UBOOT[0]}
+echo ${KERNEL[0]}
+
+ncpBootMem -a write -r prom -o 0x80000 $UBOOT/parameters/AXC6700_emu.bin
+ncpBootMem -a write -r prom $UBOOT/axc6700_emu/u-boot-spl.img
+ncpBootMem -a write -r prom -o 0x100000 $UBOOT/axc6700_emu/u-boot.img
+MULTI=${KERNEL[0]}/axxia-arm64-xlf-dev/axc6712-emu/multi.fit
+
+STRING=$(hostname)
+STRING=${STRING/a-ep2p/-a15}
+echo MULTI_TFTP = kernel-${STRING}
+echo MULTI_LOCAL = $MULTI
+tftp aus-labsrv2 -c put $MULTI_LOCAL $MULTI_TFTP
+
+/home/validation/al_common/XLF/util/balaji/XLFe.enable
+
+8. Load RTE and app
+Open the ARM serial console terminal by using telnet. This should give you the information.
+http://axpaasync002.sync.intel.com:47014/scripts/isynch.dll?panel=TclScript&file=getACPSum.tcl&fulllist=10&xlfSwitch=XLF
+
+9. Source RTE’s ncp.env
+mount -t nfs ancfs04n01a-03:/sw013/ws_sw_atm-abis/ /workspace/sw/ &&
+cd /workspace/sw/mbykowsx/lionfish/trunk/images/ncp_linux-arma53_rte_bin/ncp_rte && source ./ncp.env &&
+ncpDriver ncp add && ncpCfgTool -c /workspace/sw/mbykowsx/lionfish/configs/config_fpga.cfg -r &&
+export PS1="\u@\h:$ "
+
+10. Build app
+export ASE_INSTALL=/workspace/sw/mbykowsx/lionfish/ase
+export JAVA_HOME=/home/morawieX/jre1.8.0_73/
+cd /workspace/sw/mbykowsx/lionfish/RifCpriSample_send && make clean && cd /workspace/sw/mbykowsx/lionfish/RifCpriSample_send/cpu && make clean
+cd /workspace/sw/mbykowsx/lionfish/RifCpriSample_send && make debug && cd /workspace/sw/mbykowsx/lionfish/RifCpriSample_send/cpu && make debug
+
+11. Reset
+cd /workspace/sw/mbykowsx/lionfish/trunk/images/ncp_linux-ep8572_xlf_rte_bin/ncp_rte && source ./ncp.env &&
+/home/validation/al_common/XLF/util/balaji/XLFe.enable
+EOF
+}
+
+lua() {
+cat << "EOF"
+# run and exit
+/workspace/sw/mbykowsx/lionfish/srift/srift_lua/srift/srift -f /workspace/sw/mbykowsx/lionfish/srift/testcases/link/FastCM/fastcm_rx_broadcast_tc/enable_crccheck.lua
+# run and stop in interpreter
+/workspace/sw/mbykowsx/lionfish/srift/srift_lua/srift/srift -i /workspace/sw/mbykowsx/lionfish/srift/testcases/link/FastCM/fastcm_rx_broadcast_tc/enable_crccheck.lua
+print(print(ulCfg.cpriUplinkConfig.fastChannelConfig.enableEthMACFCSChecking)
+EOF
+}
+
+bash_logging() {
+cat << "EOF"
+start_loggin() {
+	local LOGFILE=logfile
+	exec 3>&1 4>&2
+	mkdir -p ~/tmp || exit 1
+	mkfifo ~/tmp/pipe$$
+	tee ${LOGFILE} < ~/tmp/pipe$$ & pid=$!
+	exec > ~/tmp/pipe$$ 2>&1
+}
+stop_logging() {
+	rm -f ~/tmp/pipe$$;
+	exec 1>&3 2>&4
+	exec 3>&- 4>&-
+}
+
+or
+
+exec > >(tee logfile) 2>&1
+set -x
+
+or
+
+{
+echo ktos
+ls
+} | tee logfile
+
+EOF
+}
+
+#external host
+gpdma_at_el2() {
+	cat << "EOM"
+/workspace/sw/swreleases/builds/ncp/releases/1.5.3/rel_1_5_3_026
+/workspace/sw/swreleases/builds/ncp/releases/1.5.3/rel_1_5_3_040/download_rte/ncp_linux-x86_64_rte_bin
+write_keys.sh /workspace/sw/jjacques/projects/axxia/ext_tools/trunk/os/u-boot/testing/boot_features_x9xlf
+EOM
+}

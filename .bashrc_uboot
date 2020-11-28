@@ -1,0 +1,280 @@
+ATF_DIR=/workspace/sw/mbykowsx/lionfish/axxia_atf_private
+ATF_EAGLE_CREST_DIR=/workspace/sw/mbykowsx/lionfish/iwa_soft_radio-iwa_soft_radio_atf;
+SPL_DIR=/workspace/sw/mbykowsx/lionfish/axxia_u-boot_private/spl
+UBOOT_DIR=/workspace/sw/mbykowsx/lionfish/axxia_u-boot_private
+
+atf() {
+	echo "Building atf"
+        test -n $1 || { return 127; }
+        set -x
+        BOARD="${1}=1"
+        test -z $2 && TYPE="" || TYPE="${2}=1"
+        pushd .
+        local rc=0
+        # clean uboot
+        { cd $UBOOT_DIR && make distclean; } 
+        # create spl dir in uboot for copying bl31 onto
+        test -d $SPL_DIR || { rm -rf $SPL_DIR; mkdir -p $SPL_DIR; }
+
+	# select between gen2 and crests
+	if [[ $2 == crest ]]; then
+		ATF_DIR=$ATF_EAGLE_CREST_DIR
+	elif [[ $2 == gen2 ]]; then
+		:
+		echo $ATF_DIR
+	else
+		return 127
+	fi
+
+        cd $ATF_DIR
+		if [[ 1 -eq 1 ]]; then
+			if make distclean && make -j 72 $BOARD PLAT=axxia USE_COHERENT_MEM=0 DEBUG=1 CRASH_REPORTING=1 bl31; then
+					${CROSS_COMPILE}objcopy -I binary -O elf64-littleaarch64 -B aarch64 \
+						--rename-section .data=.monitor  \
+						build/axxia/debug/bl31.bin build/axxia/debug/bl31.o
+					cp build/axxia/debug/bl31.o $SPL_DIR
+			else
+					rc=127
+			fi
+		else 
+			if make distclean && make -j 72 $BOARD PLAT=axxia USE_COHERENT_MEM=0 CRASH_REPORTING=1 bl31; then
+					${CROSS_COMPILE}objcopy -I binary -O elf64-littleaarch64 -B aarch64 \
+						--rename-section .data=.monitor  \
+						build/axxia/release/bl31.bin build/axxia/release/bl31.o
+					cp build/axxia/release/bl31.o $SPL_DIR
+			else
+					rc=127
+			fi
+		fi
+        popd
+        set +x
+        return $rc
+}
+
+atf_emu() {
+		echo "Building atf"
+        test -n $1 || { return 127; }
+        set -x
+        BOARD="${1}=1"
+        test -z $2 && TYPE="" || TYPE="${2}=1"
+        pushd .
+        local rc=0
+        # clean uboot
+        { cd $UBOOT_DIR && make distclean; } 
+        # create spl dir in uboot for copying bl31 onto
+        test -d $SPL_DIR || { rm -rf $SPL_DIR; mkdir -p $SPL_DIR; }
+        cd $ATF_DIR
+        if make distclean && make -j 72 PLAT=axxia USE_COHERENT_MEM=0 EMULATION=1 DEBUG=1 bl31; then
+                ${CROSS_COMPILE}objcopy -I binary -O elf64-littleaarch64 -B aarch64 \
+                    --rename-section .data=.monitor  \
+					build/axxia/debug/bl31.bin build/axxia/debug/bl31.o
+                cp build/axxia/debug/bl31.o $SPL_DIR
+        else
+                rc=127
+        fi
+        popd
+        set +x
+        return $rc
+}
+
+uboot() {
+		echo "Building Uboot and SPL"
+        test -n "$1" || { cu_help; return 127; }
+        set -x
+        UBOOT=$1
+        local rc=0
+        pushd .
+        cd $UBOOT_DIR
+        # distclean called within ATF
+        if make ${UBOOT}_defconfig && make -j 72; then
+                # for emulation -e 0x00027001. For simulation or hardware, -e 0x00197001
+                ./tools/mkimage -A arm64 -T firmware -C none -a 0 -e 0x00197001 -n XLOADER -d spl/u-boot-spl.bin spl/u-boot-spl.img
+                ./tools/mkimage -A arm64 -T firmware -C none -a 0 -e 0 -n XLOADER -d u-boot.bin u-boot.img
+
+echo sending to tftp
+tftp aus-labsrv2 << TFTP
+put u-boot.img mbu-boot.img
+put spl/u-boot-spl.img mbu-boot-spl.img
+TFTP
+        else
+                rc=127
+        fi
+		cs_xlf_func
+        popd
+        set +x
+        return $rc
+}
+alias buildv_gen2="atf AXM5600 gen2 && uboot axm5600"
+alias buildw_gen2="atf AXC6700 gen2 && uboot axc6700"
+alias buildv_crest="atf AXM5600 crest && uboot axm5600"
+alias buildw_crest="atf AXC6700 crest && uboot axc6700"
+
+
+uboot_emu() {
+		echo "Building Uboot and SPL"
+        test -n "$1" || { cu_help; return 127; }
+        set -x
+        UBOOT=$1
+        local rc=0
+        pushd .
+        cd $UBOOT_DIR
+        # distclean called within ATF
+        if make ${UBOOT}_emu_defconfig && make -j 72; then
+                # for emulation -e 0x00027001. For simulation or hardware, -e 0x00197001
+                ./tools/mkimage -A arm64 -T firmware -C none -a 0 -e 0x00027001 -n XLOADER -d spl/u-boot-spl.bin spl/u-boot-spl.img
+                ./tools/mkimage -A arm64 -T firmware -C none -a 0 -e 0 -n XLOADER -d u-boot.bin u-boot.img
+
+tftp aus-labsrv2 << TFTP
+put u-boot.img mbu-boot.img
+put spl/u-boot-spl.img mbu-boot-spl.img
+TFTP
+		#cp {u-boot.img,spl/u-boot-spl.img}  /workspace/sw/mbykowsx/lionfish/uboot
+		#cp {AXC6700.bin,AXM5600.bin} /workspace/sw/mbykowsx/lionfish/uboot
+        else
+                rc=127
+        fi
+		cs_xlf_func
+        popd
+        set +x
+        return $rc
+}
+alias bootw_emu="atf_emu AXC6700 && uboot_emu axc6700"
+
+
+##########################################################################
+# Nokia way: ATF, SPL, Uboot are seperate in flash #
+##########################################################################
+MKIMAGE=/workspace/sw/mbykowsx/lionfish/axxia_u-boot_private/tools/mkimage
+
+atf_nk() {
+		echo "Building atf"
+        test -n $1 || return 127
+        BOARD="${1}=1"
+        test -z $2 && TYPE="" || TYPE="${2}=1"
+        pushd .
+        set +x
+        cd $ATF_DIR
+        if make distclean && make -j 72 PLAT=axxia USE_COHERENT_MEM=0 DEBUG=1 bl31; then
+        	$MKIMAGE -A arm64 -T firmware -C none -a 0 -e 0 \
+				-n XLOADER -d build/axxia/debug/bl31.bin build/axxia/debug/bl31.img
+		else 
+			return 127
+		fi
+tftp aus-labsrv2 << TFTP
+put build/axxia/debug/bl31.img bl31.img
+TFTP
+		cs
+        set +x
+        popd
+        return 0
+}
+
+uboot_nk() {
+		echo "Building Uboot and SPL"
+        test -n "$1" || { return 127; }
+        local rc=0
+        UBOOT=$1
+        pushd .
+        set +x
+        cd $UBOOT_DIR
+        if make distclean && make ${UBOOT}_defconfig && make -j 72; then
+                # for emulation -e 0x00027001. For simulation or hardware, -e 0x00197001
+                $MKIMAGE -A arm64 -T firmware -C none -a 0 -e 0x00197001 -n XLOADER -d spl/u-boot-spl.bin spl/u-boot-spl.img
+                $MKIMAGE -A arm64 -T firmware -C none -a 0 -e 0 -n XLOADER -d u-boot.bin u-boot.img
+
+tftp aus-labsrv2 << TFTP
+put u-boot.img mbu-boot.img
+put spl/u-boot-spl.img mbu-boot-spl.img
+TFTP
+#put AXC6700.bin mbAXC6700.bin
+#put AXC6700.bin mbAXC6700.bin
+		cp {u-boot.img,spl/u-boot-spl.img}  /workspace/sw/mbykowsx/lionfish/uboot
+		cp {AXC6700.bin,AXM5600.bin} /workspace/sw/mbykowsx/lionfish/uboot
+        else
+               return 127
+        fi
+		cs
+        set +x
+        popd
+        return 0
+}
+alias bootn="uboot_nk axc6700 && atf_nk axc6700"
+
+atf_nokia() {
+		echo "Building atf"
+        test -n $1 || { return 127; }
+        set -x
+        BOARD="${1}=1"
+        test -z $2 && TYPE="" || TYPE="${2}=1"
+        pushd .
+        local rc=0
+        # clean uboot
+        { cd $UBOOT_DIR && make distclean; } 
+        # create spl dir in uboot for copying bl31 onto
+        test -d $UBOOT_DIR || { rm -rf $UBOOT_DIR; mkdir -p $UBOOT_DIR; }
+        cd $ATF_DIR
+        if make distclean && make -j 72 PLAT=axxia USE_COHERENT_MEM=0 DEBUG=1 bl31; then
+                ${CROSS_COMPILE}objcopy -I binary -O elf64-littleaarch64 -B aarch64 \
+                    --rename-section .data=.monitor  \
+					build/axxia/debug/bl31.bin build/axxia/debug/bl31.o
+        else
+                rc=127
+        fi
+        popd
+        set +x
+        return $rc
+}
+
+uboot_nokia() {
+		echo "Building Uboot and SPL"
+        test -n "$1" || { return 127; }
+        local rc=0
+        UBOOT=$1
+        pushd .
+        set +x
+        cd $UBOOT_DIR
+        if make distclean && cp ${ATF_DIR}/build/axxia/debug/bl31.o . && make ${UBOOT}_defconfig && make -j 72; then
+                # for emulation -e 0x00027001. For simulation or hardware, -e 0x00197001
+                $MKIMAGE -A arm64 -T firmware -C none -a 0 -e 0x00197001 -n XLOADER -d spl/u-boot-spl.bin spl/u-boot-spl.img
+                $MKIMAGE -A arm64 -T firmware -C none -a 0 -e 0 -n XLOADER -d u-boot.bin u-boot.img
+
+tftp aus-labsrv2 << TFTP
+put u-boot.img mbu-boot.img
+put spl/u-boot-spl.img mbu-boot-spl.img
+TFTP
+
+        else
+               return 127
+        fi
+		cs
+        set +x
+        popd
+        return 0
+
+}
+
+alias boot_nokiaw="atf_nokia AXC6700 && uboot_nokia axc6700"
+
+alias a="cd /workspace/sw/mbykowsx/lionfish/axxia_atf_private"
+alias u="cd /workspace/sw/mbykowsx/lionfish/axxia_u-boot_private"
+alias k="cd /workspace/sw/mbykowsx/lionfish/kernel"
+alias kk="cd /workspace/sw/mbykowsx/lionfish/linux-yocto_private"
+alias dma="cd /workspace/sw/mbykowsx/lionfish/perf/nuevo/peripherals/pcie/axm6732/asic-1.1/gpdma_to_l3_locked"
+alias lm="cd /workspace/sw/mbykowsx/lionfish/perf/nuevo/cpu/axm6732/asic_v1.1/lmbench3"
+
+
+build_5500() {
+	make distclean
+	make axxia-55xx_config 
+	make -j 72
+	set -x
+	cs
+	set +x
+tftp aus-labsrv2 << TFTP
+put u-boot.img mbu-boot.img
+put spl/u-boot-spl.bin mbu-boot-spl.bin
+TFTP
+}
+
+alias boota=build_5500
+

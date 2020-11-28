@@ -1,0 +1,76 @@
+SET_X=0
+BSP_DIR=/workspace/sw/mbykowsx/eagle/sim/bsp
+ATF_CREST_DIR=/workspace/sw/mbykowsx/eagle/soft-radio-atf
+UBOOT_CREST_DIR=/workspace/sw/mbykowsx/eagle/soft-radio-u-boot
+SPL_CREST_DIR=${UBOOT_CREST_DIR}/spl
+
+#name branch postfixing
+#date +%d%b%Y_%Ih%Mm%Ss
+
+atf() {
+	echo "Building ATF"
+        test -n "$1" || { echo "atf eaglecrest_sim";  return 127; }
+        test ${SET_X} = 1 && set -x
+        pushd . >/dev/null 2>&1
+        local rc=0
+        # clean uboot
+        { cd $UBOOT_CREST_DIR && make distclean; }
+        # create spl dir in uboot for copying bl31 onto
+        test -d $SPL_CREST_DIR || { rm -rf $SPL_CREST_DIR; mkdir -p $SPL_CREST_DIR; }
+	cd $ATF_CREST_DIR
+	PLAT=srp; DEBUG_BUILD=1
+	test $DEBUG_BUILD -eq 1 && OUTPUT=debug || OUTPUT=release
+	if make distclean && make -j 88 PLAT=$PLAT USE_COHERENT_MEM=0 DEBUG=$DEBUG_BUILD bl31; then
+		${CROSS_COMPILE}objcopy -I binary -O elf64-littleaarch64 -B aarch64 \
+			--rename-section .data=.monitor  \
+		build/$PLAT/$OUTPUT/bl31.bin build/$PLAT/$OUTPUT/bl31.o
+		cp build/$PLAT/$OUTPUT/bl31.o $SPL_CREST_DIR
+	else
+		rc=127
+	fi
+        popd >/dev/null 2>&1
+        test ${SET_X} = 1 && set +x
+        return $rc
+}
+
+uboot() {
+	echo "Building U-Boot"
+        test -n "$1" || { echo "uboot eaglecrest_sim";  return 127; }
+        test ${SET_X} = 1 && set -x
+        UBOOT=$1
+        local rc=0
+        pushd . >/dev/null 2>&1
+        cd $UBOOT_CREST_DIR
+        if make ${UBOOT}_defconfig && make -j 88; then
+                # for emulation -e 0x00027001. For simulation or hardware, -e 0x00197001
+                ./tools/mkimage -A arm64 -T firmware -C none -a 0 -e 0x00197001 -n XLOADER -d spl/u-boot-spl.bin spl/u-boot-spl.img
+                ./tools/mkimage -A arm64 -T firmware -C none -a 0 -e 0 -n XLOADER -d u-boot.bin u-boot.img
+
+: << 'no_ftp_yet'
+echo sending to tftp
+tftp aus-labsrv2 << TFTP
+put u-boot.img mbu-boot.img
+put spl/u-boot-spl.img mbu-boot-spl.img
+TFTP
+no_ftp_yet
+
+        else
+                rc=127
+        fi
+
+        popd >/dev/null 2>&1
+        test ${SET_X} = 1 && set +x
+        return $rc
+}
+
+build_egc()
+{
+	atf eaglecrest_sim && uboot eaglecrest_sim
+	test T$1 = Ttf && { echo -e "\nbuilding tftf-verification"; cd /workspace/sw/mbykowsx/lionfish/tf-a-tests && make && cd -; }
+}
+echo "build_egc"
+
+alias ac="cd ${ATF_CREST_DIR}"
+alias uc="cd ${UBOOT_CREST_DIR}"
+alias ul="cd /workspace/sw/mbykowsx/eagle/soft-radio-linux"
+alias tf="cd /workspace/sw/mbykowsx/lionfish/tf-a-tests"

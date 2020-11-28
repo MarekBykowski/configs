@@ -1,0 +1,143 @@
+ATF_GEN2_DIR=/workspace/sw/mbykowsx/lionfish/axxia_atf_private
+UBOOT_GEN2_DIR=/workspace/sw/mbykowsx/lionfish/axxia_u-boot_private
+SPL_GEN2_DIR=${UBOOT_GEN2_DIR}/spl
+
+ATF_CREST_DIR=/workspace/sw/mbykowsx/lionfish/iwa_soft_radio-iwa_soft_radio_atf
+UBOOT_CREST_DIR=/workspace/sw/mbykowsx/lionfish/iwa_soft_radio-iwa_soft_radio_u-boot
+SPL_CREST_DIR=${UBOOT_CREST_DIR}/spl
+
+#Change the dirs if testing for gitlab
+GITLAB=0
+if [[ $GITLAB == 1 ]]; then
+	ATF_CREST_DIR=/workspace/sw/mbykowsx/lionfish/iwa_soft_radio-iwa_soft_radio_atf
+	UBOOT_CREST_DIR=/workspace/sw/mbykowsx/lionfish/soft-radio-u-boot
+	SPL_CREST_DIR=${UBOOT_CREST_DIR}/spl
+fi
+
+
+ATF_DIR=undefined
+UBOOT_DIR=undefined
+
+select_atf_uboot_dir() {
+	# $1 must be atf dir, $2 - Uboot dir
+	case $1 in
+	atf_gen2)
+		ATF_DIR=$ATF_GEN2_DIR
+		;;
+	atf_crest)
+		ATF_DIR=$ATF_CREST_DIR
+		;;
+	*)
+		ATF_DIR=undefined
+		;;
+	esac
+
+	case $2 in
+	uboot_gen2)
+		UBOOT_DIR=$UBOOT_GEN2_DIR
+		SPL_DIR=$SPL_GEN2_DIR
+		;;
+	uboot_crest)
+		UBOOT_DIR=$UBOOT_CREST_DIR
+		SPL_DIR=$SPL_CREST_DIR
+		;;
+	*)
+		UBOOT_DIR=undefined
+		SPL_DIR=undefined
+		;;
+	esac
+
+	echo "ATF_DIR=$ATF_DIR"
+	echo "UBOOT_DIR=$UBOOT_DIR"
+	echo "SPL_DIR=$SPL_DIR"
+
+	if [[ $SPL_DIR == "undefined" || $UBOOT_DIR == "undefined" ]]; then
+		echo "Invalid atf, Uboot combnination"
+		return 127; #return error
+	fi
+}
+
+atf() {
+	echo "Building atf"
+        test -n $1 || { return 127; }
+        set -x
+        BOARD="${1}=1"
+        test -z $2 && TYPE="" || TYPE="${2}=1"
+        pushd .
+        local rc=0
+        # clean uboot
+        { cd $UBOOT_DIR && make distclean; } 
+        # create spl dir in uboot for copying bl31 onto
+        test -d $SPL_DIR || { rm -rf $SPL_DIR; mkdir -p $SPL_DIR; }
+
+        cd $ATF_DIR
+	if [[ 1 -eq 1 ]]; then
+		if make distclean && make -j 72 $BOARD PLAT=axxia USE_COHERENT_MEM=0 DEBUG=1 CRASH_REPORTING=1 bl31; then
+			${CROSS_COMPILE}objcopy -I binary -O elf64-littleaarch64 -B aarch64 \
+				--rename-section .data=.monitor  \
+			build/axxia/debug/bl31.bin build/axxia/debug/bl31.o
+			cp build/axxia/debug/bl31.o $SPL_DIR
+		else
+			rc=127
+		fi
+	else 
+		if make distclean && make -j 72 $BOARD PLAT=axxia USE_COHERENT_MEM=0 CRASH_REPORTING=1 bl31; then
+			${CROSS_COMPILE}objcopy -I binary -O elf64-littleaarch64 -B aarch64 \
+				--rename-section .data=.monitor  \
+			build/axxia/release/bl31.bin build/axxia/release/bl31.o
+			cp build/axxia/release/bl31.o $SPL_DIR
+		else
+			rc=127
+		fi
+	fi
+        popd
+        set +x
+        return $rc
+}
+
+uboot() {
+	echo "Building Uboot and SPL"
+        test -n "$1" || { help_msg; return 127; }
+        set -x
+        UBOOT=$1
+        local rc=0
+        pushd .
+        cd $UBOOT_DIR
+        # distclean called within ATF
+        if make ${UBOOT}_defconfig && make -j 72; then
+                # for emulation -e 0x00027001. For simulation or hardware, -e 0x00197001
+                ./tools/mkimage -A arm64 -T firmware -C none -a 0 -e 0x00197001 -n XLOADER -d spl/u-boot-spl.bin spl/u-boot-spl.img
+                ./tools/mkimage -A arm64 -T firmware -C none -a 0 -e 0 -n XLOADER -d u-boot.bin u-boot.img
+
+echo sending to tftp
+tftp aus-labsrv2 << TFTP
+put u-boot.img mbu-boot.img
+put spl/u-boot-spl.img mbu-boot-spl.img
+TFTP
+
+        else
+                rc=127
+        fi
+
+        popd
+        set +x
+        return $rc
+}
+
+# Aligned firmware and Uboot
+alias buildv_agen2_ugen2="select_atf_uboot_dir atf_gen2 uboot_gen2 && atf AXM5600 && uboot axm5600"
+alias buildv_acrest_ucrest="select_atf_uboot_dir atf_crest uboot_crest && atf AXM5600 && uboot axm5600"
+alias buildw_agen2_ugen2="select_atf_uboot_dir atf_gen2 uboot_gen2 && atf AXC6700 && uboot axc6700"
+alias buildw_acrest_ucrest="select_atf_uboot_dir atf_crest uboot_crest; atf AXC6700 && uboot axc6700"
+
+# Mix-ups
+alias buildv_acrest_ugen2="select_atf_uboot_dir atf_crest uboot_gen2 && atf AXM5600 && uboot axm5600"
+alias buildw_acrest_ugen2="select_atf_uboot_dir atf_crest uboot_gen2 && atf AXC6700 && uboot axc6700"
+alias buildw_agen2_ucrest="select_atf_uboot_dir atf_gen2 uboot_crest && atf AXC6700 && uboot axc6700"
+alias buildv_agen2_ucrest="select_atf_uboot_dir atf_gen2 uboot_crest && atf AXM5600 && uboot axm5600"
+
+alias | grep  "buildv\|buildw"
+
+alias uc="cd /workspace/sw/mbykowsx/lionfish/iwa_soft_radio-iwa_soft_radio_u-boot" 
+alias ac="cd /workspace/sw/mbykowsx/lionfish/iwa_soft_radio-iwa_soft_radio_atf"
+alias tf="cd /workspace/sw/mbykowsx/lionfish/tf-a-tests"
