@@ -1,0 +1,79 @@
+bitbake -e core-image-minimal
+bitbake -e core-image-minimal
+bitbake -e | grep -w DISTRO_FEATURES
+bitbake-layers --help
+bitbake-layers show-layers
+bitbake-layers show-recepies
+bitbake-layers show-recipes |grep -C 10 u-boot
+bitbake --help
+bitbake --which
+which bitbake
+bitbake --help
+bitbake -c listtasks
+bitbake -c listtasks
+bitbake -c do_listtasks core-image-minimal
+bitbake-layers show-recipes
+bitbake-layers --help
+bitbake-layers show-layers
+bitbake-layers show-recipes "*u-boot*"
+bitbake-layers show-recipes "*u-boot*"
+bitbake-layers show-layers
+bitbake -e core-image-minimal | grep ^SRC_URI=
+bitbake -e core-image-minimal | grep ^SRC_URI
+bitbake -e core-image-minimal | grep SRC_URI
+bitbake -e u-boot | grep SRC_URI
+bitbake -e u-boot | grep SRC_URI
+bitbake -e u-boot | grep -B 10 SRC_URI
+bitbake -e u-boot | grep SRC_URI
+bitbake -e u-boot -c listtasks
+bitbake u-boot -c listtasks
+bitbake u-boot -c do_fetch
+bitbake -v u-boot -c do_fetch
+bitbake u-boot -c listtasks
+bitbake-layers show-recipes | grep u-boot
+bitbake-layers show-recipes | grep -C 5 u-boot
+bitbake-layers show-;ayers
+bitbake-layers show-layers
+bitbake u-boot -c listtasks
+bitbake u-boot -c do_fetch
+bitbake -e u-boot
+bitbake --help
+bitbake -g u-boot
+bitbake u-boot
+bitbake u-boot -c do_fetch
+bitbake u-boot -c do_fetch
+bitbake -e u-boot|grep WORKDIR
+bitbake -e u-boot|grep ^WORKDIR
+bitbake -e u-boot|grep ^SSTATE_MIRRORS
+bitbake -e u-boot|grep SSTATE_MIRRORS
+bitbake -e u-boot|grep ^SSTATE_
+bitbake -e u-boot|grep ^TMPDIR_
+bitbake -e u-boot|grep ^TMPDIR
+bitbake -e u-boot|grep ^S=
+bitbake -e u-boot|grep ^WORKDIR
+
+
+For configuration changes, use the following:
+
+$ bitbake -e
+This command displays variable values after the configuration files (i.e.
+local.conf, bblayers.conf, bitbake.conf and so forth) have been parsed.
+
+Note
+
+Variables that are exported to the environment are preceded by the string
+“export” in the command’s output.
+
+For recipe changes, use the following:
+
+$ bitbake recipe -e \| grep VARIABLE="
+This command checks to see if the variable actually makes it into a specific
+recipe.
+
+
+
+vim ../layers/meta-arm/meta-arm-bsp/recipes-bsp/u-boot/u-boot_%.bbappend
+bitbake -c unpack u-boot
+bitbake -e u-boot|grep ^S=
+cd local_repos/
+cp -rf /home/marek/build_fvp/build-poky/tmp-poky/work/fvp_base-poky-linux/u-boot/1_2020.01-r0/git/ uboot
